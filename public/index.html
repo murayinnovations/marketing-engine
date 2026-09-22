@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Marketing & Sales Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #FAFAF8;
+  --surface: #FFFFFF;
+  --surface-alt: #F3F2EE;
+  --text: #1A1A18;
+  --text-secondary: #6B6B64;
+  --accent: #B8450C;
+  --accent-light: #FFF0E8;
+  --gate-locked: #C62828;
+  --gate-amber: #E67E22;
+  --gate-green: #2E7D32;
+  --gate-complete: #1B5E20;
+  --gate-inactive: #C4C4BC;
+  --border: #E5E4DF;
+  --chat-user: #EDE9E3;
+  --shadow: rgba(26,26,24,0.06);
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-display: 'DM Serif Display', Georgia, serif;
+  box-sizing: border-box;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141413;
+    --surface: #1E1E1C;
+    --surface-alt: #262624;
+    --text: #EAEAE6;
+    --text-secondary: #9A9A92;
+    --accent: #E8733A;
+    --accent-light: #2E1A0E;
+    --gate-locked: #EF5350;
+    --gate-amber: #FFB74D;
+    --gate-green: #66BB6A;
+    --gate-complete: #43A047;
+    --gate-inactive: #5A5A54;
+    --border: #333330;
+    --chat-user: #2A2A26;
+    --shadow: rgba(0,0,0,0.2);
+  }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 280px; min-width: 280px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+.sidebar-header { padding: 24px 20px 16px; border-bottom: 1px solid var(--border); }
+.sidebar-header h1 {
+  font-family: var(--font-display);
+  font-size: 20px; font-weight: 400; line-height: 1.3;
+}
+.sidebar-header p { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.company-select {
+  margin: 16px 20px; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface-alt); color: var(--text);
+  font-family: var(--font-body); font-size: 13px;
+  width: calc(100% - 40px); cursor: pointer;
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%236B6B64' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+}
+.gates-list { padding: 8px 12px; flex: 1; }
+.gate-section-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-secondary);
+  padding: 12px 8px 6px;
+}
+.gate-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 8px; border-radius: 6px;
+  cursor: pointer; transition: background 0.15s; font-size: 13px;
+}
+.gate-item:hover { background: var(--surface-alt); }
+.gate-item.active { background: var(--accent-light); }
+.gate-dot {
+  width: 10px; height: 10px; min-width: 10px;
+  border-radius: 50%; border: 2px solid var(--gate-inactive);
+  background: transparent;
+}
+.gate-dot.locked   { border-color: var(--gate-locked);   background: var(--gate-locked); }
+.gate-dot.amber    { border-color: var(--gate-amber);    background: var(--gate-amber); }
+.gate-dot.green    { border-color: var(--gate-green);    background: var(--gate-green); }
+.gate-dot.complete { border-color: var(--gate-complete); background: var(--gate-complete); }
+.gate-dot.current  { border-color: var(--accent); border-width: 3px; }
+.gate-label { color: var(--text); font-weight: 500; }
+.gate-item.inactive .gate-label { color: var(--text-secondary); }
+.gate-status {
+  margin-left: auto; font-size: 10px; font-weight: 600;
+  padding: 2px 6px; border-radius: 4px;
+}
+.gate-status.done { background: #E8F5E9; color: #1B5E20; }
+.sidebar-footer {
+  padding: 16px 20px; border-top: 1px solid var(--border);
+}
+.reset-btn {
+  background: none; border: 1px solid var(--border);
+  color: var(--text-secondary); font-family: var(--font-body);
+  font-size: 12px; padding: 6px 12px; border-radius: 6px;
+  cursor: pointer; width: 100%;
+}
+.reset-btn:hover { background: var(--surface-alt); }
+
+/* ── MAIN ── */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.main-header {
+  padding: 16px 24px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface);
+}
+.menu-btn {
+  display: none; background: none; border: none;
+  color: var(--text); cursor: pointer; padding: 4px;
+}
+.current-gate-title { font-weight: 600; font-size: 15px; }
+.current-gate-governance {
+  font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px;
+}
+.gov-red   { background: #FFEBEE; color: #C62828; }
+.gov-amber { background: #FFF3E0; color: #E65100; }
+.gov-green { background: #E8F5E9; color: #2E7D32; }
+
+/* ── CHAT ── */
+.chat-area {
+  flex: 1; overflow-y: auto; padding: 24px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.msg {
+  max-width: 720px; width: 100%;
+  line-height: 1.65; font-size: 14.5px;
+}
+.msg.user {
+  align-self: flex-end; background: var(--chat-user);
+  padding: 12px 16px; border-radius: 16px 16px 4px 16px;
+}
+.msg.assistant { align-self: flex-start; padding: 4px 0; }
+.msg.assistant p { margin-bottom: 10px; }
+.msg.assistant p:last-child { margin-bottom: 0; }
+.msg.assistant strong { font-weight: 600; color: var(--accent); }
+.msg.assistant ul, .msg.assistant ol { margin: 8px 0; padding-left: 20px; }
+.msg.assistant li { margin-bottom: 4px; }
+
+.typing-indicator {
+  display: flex; gap: 4px; padding: 12px 0; align-self: flex-start;
+}
+.typing-indicator span {
+  width: 8px; height: 8px; background: var(--text-secondary);
+  border-radius: 50%; animation: bounce 1.4s infinite ease-in-out;
+}
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+/* ── INPUT ── */
+.input-area {
+  padding: 16px 24px; border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.input-row { display: flex; gap: 8px; max-width: 720px; }
+.input-field {
+  flex: 1; padding: 12px 16px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-body); font-size: 14.5px;
+  resize: none; min-height: 48px; max-height: 160px; line-height: 1.5;
+}
+.input-field:focus { outline: none; border-color: var(--accent); }
+.send-btn {
+  width: 48px; height: 48px; border: none;
+  background: var(--accent); color: #fff; border-radius: 12px;
+  cursor: pointer; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; transition: opacity 0.15s;
+}
+.send-btn:disabled { opacity: 0.4; cursor: default; }
+.send-btn svg { width: 20px; height: 20px; }
+
+/* ── WELCOME ── */
+.welcome {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; padding: 40px 24px; gap: 16px;
+}
+.welcome h2 { font-family: var(--font-display); font-size: 28px; font-weight: 400; }
+.welcome p { color: var(--text-secondary); max-width: 480px; line-height: 1.6; font-size: 15px; }
+
+/* ── MOBILE ── */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed; left: -300px; top: 0; bottom: 0;
+    z-index: 100; width: 280px; min-width: 0;
+    transition: left 0.25s ease;
+  }
+  .sidebar.open { left: 0; box-shadow: 4px 0 20px var(--shadow); }
+  .overlay {
+    display: none; position: fixed; inset: 0; z-index: 99;
+    background: rgba(0,0,0,0.3);
+  }
+  .overlay.show { display: block; }
+  .menu-btn { display: flex; }
+}
+</style>
+</head>
+<body>
+
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h1>The Marketing &amp; Sales Engine</h1>
+    <p>12-gate growth system</p>
+  </div>
+  <select class="company-select" id="companySelect" onchange="switchCompany()">
+    <option value="">Select a company…</option>
+    <option value="Melvins Tea">Melvins Tea</option>
+    <option value="Scale Founders Africa">Scale Founders Africa</option>
+    <option value="Azizi">Azizi</option>
+    <option value="Other">Other</option>
+  </select>
+  <div class="gates-list" id="gatesList"></div>
+  <div class="sidebar-footer">
+    <button class="reset-btn" onclick="resetEngine()">Reset this company</button>
+  </div>
+</aside>
+
+<main class="main">
+  <header class="main-header">
+    <button class="menu-btn" onclick="toggleSidebar()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <span class="current-gate-title" id="gateTitle">Select a company to begin</span>
+    <span class="current-gate-governance" id="gateGov"></span>
+  </header>
+
+  <div class="chat-area" id="chatArea">
+    <div class="welcome" id="welcome">
+      <h2>The Engine</h2>
+      <p>Pick a company to start building your Marketing &amp; Sales Engine — 12 gates from Growth Gap to Measure &amp; Improve.</p>
+    </div>
+  </div>
+
+  <div class="input-area" id="inputArea" style="display:none">
+    <div class="input-row">
+      <textarea class="input-field" id="inputField" rows="1" placeholder="Answer the question…" onkeydown="handleKey(event)" oninput="autoGrow(this)"></textarea>
+      <button class="send-btn" id="sendBtn" onclick="send()" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+</main>
+
+<script>
+const GATES = [
+  { id: 0, name: 'Growth Gap',         section: 1, gov: 'red' },
+  { id: 1, name: 'Who',                section: 1, gov: 'red' },
+  { id: 2, name: 'Problem / Desire',   section: 1, gov: 'red' },
+  { id: 3, name: 'Positioning',        section: 1, gov: 'red' },
+  { id: 4, name: 'Product / Service',  section: 1, gov: 'red' },
+  { id: 5, name: 'Offer & Price',      section: 1, gov: 'red' },
+  { id: 6, name: 'Belief & Proof',     section: 1, gov: 'red' },
+  { id: 7, name: 'Journey & Channels', section: 2, gov: 'green' },
+  { id: 8, name: 'Sales Enablement',   section: 2, gov: 'amber' },
+  { id: 9, name: 'Funnel & Conversion',section: 2, gov: 'amber' },
+  { id: 10, name: 'Follow Up & Retention', section: 2, gov: 'green' },
+  { id: 11, name: 'Measure & Improve',     section: 2, gov: 'green' },
+];
+
+let state = { company: '', companyId: null, currentGate: 0, gateStatus: {}, messages: [], started: false };
+let isStreaming = false;
+
+function renderGates() {
+  const list = document.getElementById('gatesList');
+  let html = '', sec = 0;
+  GATES.forEach(g => {
+    if (g.section !== sec) {
+      sec = g.section;
+      html += `<div class="gate-section-label">${sec === 1 ? 'Section 1 — Build the Asset' : 'Section 2 — Use the Asset'}</div>`;
+    }
+    const status = state.gateStatus[g.id] || 'inactive';
+    const isCurrent = state.started && g.id === state.currentGate;
+    const dot = isCurrent ? 'current' : status === 'complete' ? 'complete' : '';
+    const cls = (status === 'inactive' && !isCurrent ? ' inactive' : '') + (isCurrent ? ' active' : '');
+    html += `<div class="gate-item${cls}">
+      <span class="gate-dot ${dot}"></span>
+      <span class="gate-label">${g.id}. ${g.name}</span>
+      ${status === 'complete' ? '<span class="gate-status done">Done</span>' : ''}
+    </div>`;
+  });
+  list.innerHTML = html;
+  updateHeader();
+}
+
+function updateHeader() {
+  const t = document.getElementById('gateTitle'), g = document.getElementById('gateGov');
+  if (!state.started) { t.textContent = 'Select a company to begin'; g.textContent = ''; g.className = 'current-gate-governance'; return; }
+  const gate = GATES[state.currentGate];
+  t.textContent = `Gate ${gate.id}: ${gate.name}`;
+  const m = { red: ['Locked','gov-red'], amber: ['Shared','gov-amber'], green: ['Open','gov-green'] };
+  const [l,c] = m[gate.gov]; g.textContent = l; g.className = `current-gate-governance ${c}`;
+}
+
+async function switchCompany() {
+  const v = document.getElementById('companySelect').value;
+  if (!v) return;
+  document.getElementById('welcome').style.display = 'none';
+  document.getElementById('inputArea').style.display = 'block';
+  document.getElementById('chatArea').innerHTML = '';
+  showTyping();
+  try {
+    const resp = await fetch('/api/company', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: v })
+    });
+    const data = await resp.json();
+    hideTyping();
+    if (data.error) {
+      addMessage('assistant', 'Could not load this company. Please try again.');
+      return;
+    }
+    state = {
+      company: v, companyId: data.id, currentGate: data.currentGate,
+      gateStatus: data.gateStatus, messages: data.messages, started: true
+    };
+    renderGates();
+    if (state.messages.length) {
+      state.messages.forEach(m => addMessage(m.role, m.content));
+    } else {
+      await sendToEngine(`Starting the Marketing & Sales Engine for ${v}. Begin at Gate 0: Growth Gap.`, true);
+    }
+  } catch (err) {
+    hideTyping();
+    addMessage('assistant', 'Connection error loading company.');
+    console.error(err);
+  }
+}
+
+function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }
+function autoGrow(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; document.getElementById('sendBtn').disabled = !el.value.trim(); }
+
+function addMessage(role, content) {
+  const area = document.getElementById('chatArea');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = role === 'assistant' ? fmtMd(content) : escHtml(content);
+  area.appendChild(div); area.scrollTop = area.scrollHeight;
+  return div;
+}
+
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function fmtMd(t) {
+  return t
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .split(/\n{2,}/).map(p => {
+      if (p.trim().startsWith('- ')) {
+        const items = p.trim().split(/\n- /).map((li,i) => `<li>${i===0?li.replace(/^- /,''):li}</li>`).join('');
+        return `<ul>${items}</ul>`;
+      }
+      return `<p>${p.replace(/\n/g,'<br>')}</p>`;
+    }).join('');
+}
+
+function showTyping() {
+  const area = document.getElementById('chatArea');
+  const d = document.createElement('div'); d.className = 'typing-indicator'; d.id = 'typing';
+  d.innerHTML = '<span></span><span></span><span></span>';
+  area.appendChild(d); area.scrollTop = area.scrollHeight;
+}
+function hideTyping() { document.getElementById('typing')?.remove(); }
+
+async function send() {
+  const input = document.getElementById('inputField');
+  const text = input.value.trim();
+  if (!text || isStreaming) return;
+  input.value = ''; input.style.height = 'auto';
+  document.getElementById('sendBtn').disabled = true;
+  addMessage('user', text);
+  state.messages.push({ role: 'user', content: text });
+  await sendToEngine(text, false);
+}
+
+async function sendToEngine(userText, isSystemStart) {
+  isStreaming = true; showTyping();
+  const gate = GATES[state.currentGate];
+
+  // Build messages for API
+  const apiMessages = isSystemStart
+    ? [{ role: 'user', content: userText }]
+    : state.messages.slice(-20);
+
+  try {
+    const resp = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: apiMessages,
+        company: state.company,
+        companyId: state.companyId,
+        currentGate: state.currentGate,
+        gateName: gate.name,
+        governance: gate.gov.toUpperCase(),
+        isSystemStart: !!isSystemStart
+      })
+    });
+    const data = await resp.json();
+    hideTyping();
+
+    if (data.error) {
+      addMessage('assistant', 'Something went wrong. Please try again.');
+    } else {
+      addMessage('assistant', data.text);
+      state.messages.push({ role: 'assistant', content: data.text });
+      if (data.gateAdvanced && data.newGate != null) {
+        state.gateStatus[state.currentGate] = 'complete';
+        state.currentGate = data.newGate;
+        state.gateStatus[state.currentGate] = 'active';
+        renderGates();
+      }
+    }
+  } catch (err) {
+    hideTyping();
+    addMessage('assistant', 'Connection error. Please try again.');
+    console.error(err);
+  }
+  isStreaming = false;
+}
+
+async function resetEngine() {
+  if (!confirm('Reset all progress for this company?')) return;
+  const name = state.company;
+  if (name) {
+    try {
+      await fetch('/api/company', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, reset: true })
+      });
+    } catch (err) { console.error(err); }
+  }
+  state = { company: '', companyId: null, currentGate: 0, gateStatus: {}, messages: [], started: false };
+  document.getElementById('companySelect').value = '';
+  document.getElementById('chatArea').innerHTML = `<div class="welcome" id="welcome"><h2>The Engine</h2><p>Pick a company to start.</p></div>`;
+  document.getElementById('inputArea').style.display = 'none';
+  renderGates();
+}
+
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('overlay').classList.toggle('show'); }
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlay').classList.remove('show'); }
+
+renderGates();
+</script>
+</body>
+</html>
