@@ -1,6 +1,7 @@
 # The Marketing & Sales Engine
 
-Flora Mutahi's 12-gate Marketing & Sales Engine — an AI brain that guides teams from Growth Gap to Measure & Improve.
+Flora Mutahi's 12-gate Marketing & Sales Engine — an AI brain that guides teams from Growth Gap to Measure & Improve
+
 
 ## Supabase Setup
 
