@@ -109,6 +109,24 @@ body {
   padding: 2px 6px; border-radius: 4px;
 }
 .gate-status.done { background: #E8F5E9; color: #1B5E20; }
+.flags-panel { padding: 4px 12px 12px; border-top: 1px solid var(--border); margin-top: 8px; }
+.flags-panel-title {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--gate-locked);
+  padding: 12px 8px 6px;
+}
+.flag-item {
+  background: var(--surface-alt); border-radius: 8px;
+  padding: 10px; margin: 0 4px 8px; font-size: 12px; line-height: 1.5;
+}
+.flag-item div + div { margin-top: 4px; }
+.flag-label { font-weight: 600; color: var(--text-secondary); }
+.flag-resolve-btn {
+  margin-top: 8px; background: none; border: 1px solid var(--border);
+  color: var(--text-secondary); font-family: var(--font-body);
+  font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+}
+.flag-resolve-btn:hover { background: var(--surface); }
 .sidebar-footer {
   padding: 16px 20px; border-top: 1px solid var(--border);
 }
@@ -239,6 +257,7 @@ body {
     <option value="Other">Other</option>
   </select>
   <div class="gates-list" id="gatesList"></div>
+  <div class="flags-panel" id="flagsPanel" style="display:none"></div>
   <div class="sidebar-footer">
     <button class="reset-btn" onclick="resetEngine()">Reset this company</button>
   </div>
@@ -286,8 +305,37 @@ const GATES = [
   { id: 11, name: 'Measure & Improve',     section: 2, gov: 'green' },
 ];
 
-let state = { company: '', companyId: null, currentGate: 0, gateStatus: {}, messages: [], started: false };
+let state = { company: '', companyId: null, currentGate: 0, gateStatus: {}, messages: [], started: false, auditFlags: [] };
 let isStreaming = false;
+
+function renderFlags() {
+  const panel = document.getElementById('flagsPanel');
+  const flags = state.auditFlags || [];
+  if (!flags.length) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+  panel.style.display = 'block';
+  panel.innerHTML = `<div class="flags-panel-title">⚠ Standards flags (${flags.length})</div>` +
+    flags.map(f => `
+      <div class="flag-item" data-flag-id="${f.id || ''}">
+        <div><span class="flag-label">Standard:</span> ${escHtml(f.standard || '')}</div>
+        <div><span class="flag-label">Variation:</span> ${escHtml(f.variation || '')}</div>
+        ${f.risk ? `<div><span class="flag-label">Risk:</span> ${escHtml(f.risk)}</div>` : ''}
+        ${f.recommendation ? `<div><span class="flag-label">Recommendation:</span> ${escHtml(f.recommendation)}</div>` : ''}
+        ${f.id ? `<button class="flag-resolve-btn" onclick="resolveFlag('${f.id}')">Resolve</button>` : ''}
+      </div>
+    `).join('');
+}
+
+async function resolveFlag(id) {
+  try {
+    await fetch('/api/audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+  } catch (err) { console.error(err); }
+  state.auditFlags = (state.auditFlags || []).filter(f => f.id !== id);
+  renderFlags();
+}
 
 function renderGates() {
   const list = document.getElementById('gatesList');
@@ -341,9 +389,11 @@ async function switchCompany() {
     }
     state = {
       company: v, companyId: data.id, currentGate: data.currentGate,
-      gateStatus: data.gateStatus, messages: data.messages, started: true
+      gateStatus: data.gateStatus, messages: data.messages, started: true,
+      auditFlags: data.auditFlags || []
     };
     renderGates();
+    renderFlags();
     if (state.messages.length) {
       state.messages.forEach(m => addMessage(m.role, m.content));
     } else {
@@ -439,6 +489,10 @@ async function sendToEngine(userText, isSystemStart) {
         state.gateStatus[state.currentGate] = 'active';
         renderGates();
       }
+      if (data.deviation) {
+        state.auditFlags = [data.deviation, ...(state.auditFlags || [])];
+        renderFlags();
+      }
     }
   } catch (err) {
     hideTyping();
@@ -460,11 +514,12 @@ async function resetEngine() {
       });
     } catch (err) { console.error(err); }
   }
-  state = { company: '', companyId: null, currentGate: 0, gateStatus: {}, messages: [], started: false };
+  state = { company: '', companyId: null, currentGate: 0, gateStatus: {}, messages: [], started: false, auditFlags: [] };
   document.getElementById('companySelect').value = '';
   document.getElementById('chatArea').innerHTML = `<div class="welcome" id="welcome"><h2>The Engine</h2><p>Pick a company to start.</p></div>`;
   document.getElementById('inputArea').style.display = 'none';
   renderGates();
+  renderFlags();
 }
 
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('overlay').classList.toggle('show'); }

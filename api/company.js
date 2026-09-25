@@ -44,20 +44,30 @@ export default async function handler(req, res) {
       company = created;
     }
 
-    const [{ data: gates, error: gatesErr }, { data: convos, error: convosErr }] =
-      await Promise.all([
-        supabase
-          .from("gate_outputs")
-          .select("gate_number, status")
-          .eq("company_id", company.id),
-        supabase
-          .from("conversations")
-          .select("role, content, created_at")
-          .eq("company_id", company.id)
-          .order("created_at", { ascending: true }),
-      ]);
+    const [
+      { data: gates, error: gatesErr },
+      { data: convos, error: convosErr },
+      { data: auditFlags, error: auditErr },
+    ] = await Promise.all([
+      supabase
+        .from("gate_outputs")
+        .select("gate_number, status")
+        .eq("company_id", company.id),
+      supabase
+        .from("conversations")
+        .select("role, content, created_at")
+        .eq("company_id", company.id)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("audit_log")
+        .select("id, gate_number, standard, variation, risk, recommendation, flagged_at")
+        .eq("company_id", company.id)
+        .eq("resolved", false)
+        .order("flagged_at", { ascending: false }),
+    ]);
     if (gatesErr) throw gatesErr;
     if (convosErr) throw convosErr;
+    if (auditErr) throw auditErr;
 
     const gateStatus = {};
     let maxComplete = -1;
@@ -76,6 +86,7 @@ export default async function handler(req, res) {
       currentGate,
       gateStatus,
       messages: (convos || []).map((c) => ({ role: c.role, content: c.content })),
+      auditFlags: auditFlags || [],
     });
   } catch (err) {
     console.error("Company API error:", err);

@@ -112,20 +112,47 @@ COACHING STYLE:
 - When information is missing, question the team rather than inventing answers.
 - Separate facts from opinions. Do not allow activity to be confused with results.
 
-The purpose of this system is not to produce more marketing. The purpose is to create predictable, repeatable and profitable revenue growth.`;
+The purpose of this system is not to produce more marketing. The purpose is to create predictable, repeatable and profitable revenue growth.
 
-function detectGateAdvance(text, currentGate) {
-  const lc = text.toLowerCase();
-  const signals = [
-    `gate ${currentGate} is complete`,
-    `gate ${currentGate} approved`,
-    `moving to gate ${currentGate + 1}`,
-    `let's move to gate ${currentGate + 1}`,
-    `proceeding to gate ${currentGate + 1}`,
-    `now move to gate`,
-  ];
-  return signals.some((s) => lc.includes(s));
-}
+AFTER EVERY REPLY: call the report_turn_status tool exactly once.
+- gate_complete: true only when the current gate's required output has been fully captured and you've told the team it's approved. Otherwise false.
+- gate_summary: required when gate_complete is true — a standalone 3-6 sentence recap of what was approved. This becomes the permanent locked-standard record shown to you in later gates, so write it as a reference document, not as a reply to the user. Omit (null) when gate_complete is false.
+- deviation: only when the team's current answer contradicts an already-locked Section 1 standard shown to you in the LOCKED STANDARDS block below — name the standard, the variation, the risk, and your recommendation. Otherwise null.`;
+
+const GATE_NAMES = [
+  "Growth Gap", "Who", "Problem / Desire", "Positioning", "Product / Service",
+  "Offer & Price", "Belief & Proof", "Journey & Channels", "Sales Enablement",
+  "Funnel & Conversion", "Follow Up & Retention", "Measure & Improve",
+];
+
+const REPORT_TOOL = {
+  name: "report_turn_status",
+  description: "Call this once after every reply to report gate progress and any standards deviation.",
+  input_schema: {
+    type: "object",
+    properties: {
+      gate_complete: { type: "boolean" },
+      gate_summary: {
+        type: ["string", "null"],
+        description:
+          "Required when gate_complete is true: a standalone 3-6 sentence recap of what was approved at this gate, written as a reference record.",
+      },
+      deviation: {
+        type: ["object", "null"],
+        description:
+          "Non-null only when the team's current answer contradicts an already-locked Section 1 standard.",
+        properties: {
+          standard: { type: "string" },
+          variation: { type: "string" },
+          risk: { type: "string" },
+          recommendation: { type: "string" },
+        },
+        required: ["standard", "variation"],
+      },
+    },
+    required: ["gate_complete"],
+  },
+};
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -135,29 +162,62 @@ export default async function handler(req, res) {
   const { messages, company, companyId, currentGate, gateName, governance, isSystemStart } =
     req.body;
 
-  const companyCtx = `\n\nCOMPANY: ${company}\nCURRENT GATE: ${currentGate} (${gateName})\nGOVERNANCE: ${governance}`;
+  const supabase = companyId ? getSupabase() : null;
+
+  let companyCtx = `\n\nCOMPANY: ${company}\nCURRENT GATE: ${currentGate} (${gateName})\nGOVERNANCE: ${governance}`;
+
+  if (supabase) {
+    try {
+      const { data: locked } = await supabase
+        .from("gate_outputs")
+        .select("gate_number, summary")
+        .eq("company_id", companyId)
+        .eq("status", "complete")
+        .lte("gate_number", 6)
+        .order("gate_number", { ascending: true });
+
+      if (locked && locked.length) {
+        const lines = locked
+          .map((g) => `Gate ${g.gate_number} (${GATE_NAMES[g.gate_number]}): ${g.summary?.note || ""}`)
+          .join("\n");
+        companyCtx += `\n\nLOCKED STANDARDS (Section 1 — approved, do not contradict without flagging a deviation):\n${lines}`;
+      }
+    } catch (err) {
+      console.error("Supabase locked-standards read error:", err);
+    }
+  }
 
   let text;
+  let signal = {};
   try {
     const response = await client.messages.create({
       model: "claude-sonnet-5",
       max_tokens: 1500,
       system: SYSTEM_PROMPT + companyCtx,
       messages: messages,
+      tools: [REPORT_TOOL],
     });
 
-    text = response.content.map((c) => c.text || "").join("\n");
+    text = response.content
+      .filter((c) => c.type === "text")
+      .map((c) => c.text)
+      .join("\n");
+
+    const toolBlock = response.content.find(
+      (c) => c.type === "tool_use" && c.name === "report_turn_status"
+    );
+    signal = toolBlock?.input || {};
   } catch (err) {
     console.error("Anthropic API error:", err);
     return res.status(500).json({ error: "Engine failed to respond" });
   }
 
-  const advanced = detectGateAdvance(text, currentGate) && currentGate < 11;
+  const advanced = signal.gate_complete === true && currentGate < 11;
   const nextGate = advanced ? currentGate + 1 : null;
+  const deviation = signal.deviation || null;
 
-  if (companyId) {
+  if (supabase) {
     try {
-      const supabase = getSupabase();
       const rows = [];
       const lastMsg = messages[messages.length - 1];
       if (!isSystemStart && lastMsg && lastMsg.role === "user") {
@@ -183,7 +243,7 @@ export default async function handler(req, res) {
               company_id: companyId,
               gate_number: currentGate,
               status: "complete",
-              summary: { note: text },
+              summary: { note: signal.gate_summary || text },
               approved_at: new Date().toISOString(),
             },
             { company_id: companyId, gate_number: nextGate, status: "active" },
@@ -191,11 +251,27 @@ export default async function handler(req, res) {
           { onConflict: "company_id,gate_number" }
         );
       }
+
+      if (deviation) {
+        const { data: inserted } = await supabase
+          .from("audit_log")
+          .insert({
+            company_id: companyId,
+            gate_number: currentGate,
+            standard: deviation.standard,
+            variation: deviation.variation,
+            risk: deviation.risk || null,
+            recommendation: deviation.recommendation || null,
+          })
+          .select("id")
+          .single();
+        if (inserted) deviation.id = inserted.id;
+      }
     } catch (err) {
       // Persistence failures shouldn't block the chat response.
       console.error("Supabase persistence error:", err);
     }
   }
 
-  return res.status(200).json({ text, gateAdvanced: advanced, newGate: nextGate });
+  return res.status(200).json({ text, gateAdvanced: advanced, newGate: nextGate, deviation });
 }
