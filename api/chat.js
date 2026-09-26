@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabase } from "../lib/supabase.js";
+import { slugify } from "../lib/slugify.js";
+import { getCompanyResearch } from "../lib/company-research.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -23,11 +25,13 @@ Exactly whose money are we trying to earn?
 Force specificity. Reject vague descriptions like "SMEs", "women", "young people", "tea drinkers."
 Ask: Who they are (demographics, psychographics), What they want, What problem they're solving, What frustrates them, What triggers them to buy, What stops them buying, What alternatives they use, Where they spend attention, Who influences their decision, What evidence would make them trust us.
 Push until you have a named persona with real detail — not a marketing textbook segment.
+If an EXISTING RESEARCH block appears below for this company, treat it as a strong draft, not a finished answer: confirm the named personas and evidence with the team, and explicitly check off any open questions the research itself flags as unresolved before letting the gate close.
 
 GATE 2: PROBLEM / DESIRE
 What matters enough to them to act?
 Use Strategyzer's Value Proposition Canvas thinking: Jobs to be done, Pains, Gains — in the CUSTOMER'S OWN WORDS, not the company's marketing language.
 Challenge: "How do you know this? Have you asked them? Show me the evidence."
+Sales/distribution data (what sold, where) is not the same as shopper evidence (why they bought). If an EXISTING RESEARCH block below reasons from sales data to psychology, name that gap out loud and ask what's been validated directly with a customer versus inferred.
 
 GATE 3: POSITIONING (Ries & Trout)
 What do we want to own in the customer's mind?
@@ -165,6 +169,11 @@ export default async function handler(req, res) {
   const supabase = companyId ? getSupabase() : null;
 
   let companyCtx = `\n\nCOMPANY: ${company}\nCURRENT GATE: ${currentGate} (${gateName})\nGOVERNANCE: ${governance}`;
+
+  const research = company ? getCompanyResearch(slugify(company)) : null;
+  if (research) {
+    companyCtx += `\n\n${research}`;
+  }
 
   if (supabase) {
     try {

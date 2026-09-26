@@ -2,3 +2,9 @@ node_modules/
 .env
 .env.local
 .vercel
+
+# Raw client research — contains confidential sales/revenue/customer data,
+# repo is public. Condensed non-sensitive summary lives in lib/company-research.js.
+Melvins_Shopper_Personas.docx
+SIENA_PRIMARY_VS_SECONDARY.xlsx
+Single World Secondary.xlsx

@@ -1,12 +1,5 @@
 import { getSupabase } from "../lib/supabase.js";
-
-function slugify(name) {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
+import { slugify } from "../lib/slugify.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
