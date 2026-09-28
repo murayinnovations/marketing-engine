@@ -196,7 +196,7 @@ export default async function handler(req, res) {
   try {
     const response = await client.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 1500,
+      max_tokens: 4096,
       system: SYSTEM_PROMPT + companyCtx,
       messages: messages,
       tools: [REPORT_TOOL],
@@ -206,6 +206,11 @@ export default async function handler(req, res) {
       .filter((c) => c.type === "text")
       .map((c) => c.text)
       .join("\n");
+
+    if (response.stop_reason === "max_tokens") {
+      console.error(`Response truncated at max_tokens for company ${company}, gate ${currentGate}`);
+      text += "\n\n*(This reply hit a length limit and was cut off — ask me to continue.)*";
+    }
 
     const toolBlock = response.content.find(
       (c) => c.type === "tool_use" && c.name === "report_turn_status"
