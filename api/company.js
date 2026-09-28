@@ -62,6 +62,22 @@ export default async function handler(req, res) {
     if (convosErr) throw convosErr;
     if (auditErr) throw auditErr;
 
+    // Separate, non-fatal: content_conversations only exists once
+    // supabase-content-schema.sql has been run. Don't break company load
+    // for setups that haven't applied it yet.
+    let contentConvos = [];
+    try {
+      const { data, error } = await supabase
+        .from("content_conversations")
+        .select("role, content, created_at")
+        .eq("company_id", company.id)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      contentConvos = data || [];
+    } catch (err) {
+      console.error("content_conversations read error (has supabase-content-schema.sql been run?):", err);
+    }
+
     const gateStatus = {};
     let maxComplete = -1;
     let activeGate = null;
@@ -79,6 +95,7 @@ export default async function handler(req, res) {
       currentGate,
       gateStatus,
       messages: (convos || []).map((c) => ({ role: c.role, content: c.content })),
+      contentMessages: contentConvos.map((c) => ({ role: c.role, content: c.content })),
       auditFlags: auditFlags || [],
     });
   } catch (err) {

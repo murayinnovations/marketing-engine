@@ -137,6 +137,16 @@ body {
   cursor: pointer; width: 100%;
 }
 .reset-btn:hover { background: var(--surface-alt); }
+.mode-toggle {
+  display: none; margin: 0 20px 16px; padding: 3px;
+  background: var(--surface-alt); border-radius: 8px; gap: 2px;
+}
+.mode-btn {
+  flex: 1; border: none; background: none; cursor: pointer;
+  font-family: var(--font-body); font-size: 12px; font-weight: 600;
+  color: var(--text-secondary); padding: 7px 6px; border-radius: 6px;
+}
+.mode-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px var(--shadow); }
 
 /* ── MAIN ── */
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
@@ -256,6 +266,10 @@ body {
     <option value="Azizi">Azizi</option>
     <option value="Other">Other</option>
   </select>
+  <div class="mode-toggle" id="modeToggle">
+    <button class="mode-btn active" id="modeBtnGate" onclick="setMode('gate')">Build the Asset</button>
+    <button class="mode-btn" id="modeBtnCreate" onclick="setMode('create')">Create Content</button>
+  </div>
   <div class="gates-list" id="gatesList"></div>
   <div class="flags-panel" id="flagsPanel" style="display:none"></div>
   <div class="sidebar-footer">
@@ -305,7 +319,7 @@ const GATES = [
   { id: 11, name: 'Measure & Improve',     section: 2, gov: 'green' },
 ];
 
-let state = { company: '', companyId: null, currentGate: 0, gateStatus: {}, messages: [], started: false, auditFlags: [] };
+let state = { company: '', companyId: null, currentGate: 0, gateStatus: {}, messages: [], started: false, auditFlags: [], mode: 'gate', createMessages: [] };
 let isStreaming = false;
 
 function renderFlags() {
@@ -362,10 +376,40 @@ function renderGates() {
 function updateHeader() {
   const t = document.getElementById('gateTitle'), g = document.getElementById('gateGov');
   if (!state.started) { t.textContent = 'Select a company to begin'; g.textContent = ''; g.className = 'current-gate-governance'; return; }
+  if (state.mode === 'create') {
+    t.textContent = `Create Content — ${state.company}`;
+    g.textContent = ''; g.className = 'current-gate-governance';
+    return;
+  }
   const gate = GATES[state.currentGate];
   t.textContent = `Gate ${gate.id}: ${gate.name}`;
   const m = { red: ['Locked','gov-red'], amber: ['Shared','gov-amber'], green: ['Open','gov-green'] };
   const [l,c] = m[gate.gov]; g.textContent = l; g.className = `current-gate-governance ${c}`;
+}
+
+function setMode(m) {
+  if (!state.started || state.mode === m) return;
+  state.mode = m;
+  document.getElementById('modeBtnGate').classList.toggle('active', m === 'gate');
+  document.getElementById('modeBtnCreate').classList.toggle('active', m === 'create');
+  document.getElementById('inputField').placeholder = m === 'create'
+    ? 'Ask for a headline, caption, broadcast…'
+    : 'Answer the question…';
+  renderChatForMode();
+  updateHeader();
+}
+
+function renderChatForMode() {
+  const area = document.getElementById('chatArea');
+  area.innerHTML = '';
+  if (state.mode === 'gate') {
+    state.messages.forEach(m => addMessage(m.role, m.content));
+  } else if (state.createMessages.length) {
+    state.createMessages.forEach(m => addMessage(m.role, m.content));
+  } else {
+    addMessage('assistant', `Tell me what you need — a poster headline, a caption, a WhatsApp broadcast, a shelf talker, a sales line — for **${state.company}**, and I'll ground it in what's locked so far.`);
+  }
+  area.scrollTop = area.scrollHeight;
 }
 
 async function switchCompany() {
@@ -390,12 +434,16 @@ async function switchCompany() {
     state = {
       company: v, companyId: data.id, currentGate: data.currentGate,
       gateStatus: data.gateStatus, messages: data.messages, started: true,
-      auditFlags: data.auditFlags || []
+      auditFlags: data.auditFlags || [], mode: 'gate', createMessages: data.contentMessages || []
     };
+    document.getElementById('modeToggle').style.display = 'flex';
+    document.getElementById('modeBtnGate').classList.add('active');
+    document.getElementById('modeBtnCreate').classList.remove('active');
+    document.getElementById('inputField').placeholder = 'Answer the question…';
     renderGates();
     renderFlags();
     if (state.messages.length) {
-      state.messages.forEach(m => addMessage(m.role, m.content));
+      renderChatForMode();
     } else {
       await sendToEngine(`Starting the Marketing & Sales Engine for ${v}. Begin at Gate 0: Growth Gap.`, true);
     }
@@ -448,8 +496,46 @@ async function send() {
   input.value = ''; input.style.height = 'auto';
   document.getElementById('sendBtn').disabled = true;
   addMessage('user', text);
-  state.messages.push({ role: 'user', content: text });
-  await sendToEngine(text, false);
+  if (state.mode === 'create') {
+    state.createMessages.push({ role: 'user', content: text });
+    await sendToCreate();
+  } else {
+    state.messages.push({ role: 'user', content: text });
+    await sendToEngine(text, false);
+  }
+}
+
+async function sendToCreate() {
+  isStreaming = true; showTyping();
+  try {
+    const resp = await fetch('/api/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: state.createMessages.slice(-20),
+        company: state.company,
+        companyId: state.companyId
+      })
+    });
+    const data = await resp.json();
+    hideTyping();
+
+    if (data.error) {
+      addMessage('assistant', 'Something went wrong. Please try again.');
+    } else {
+      addMessage('assistant', data.text);
+      state.createMessages.push({ role: 'assistant', content: data.text });
+      if (data.deviation) {
+        state.auditFlags = [data.deviation, ...(state.auditFlags || [])];
+        renderFlags();
+      }
+    }
+  } catch (err) {
+    hideTyping();
+    addMessage('assistant', 'Connection error. Please try again.');
+    console.error(err);
+  }
+  isStreaming = false;
 }
 
 async function sendToEngine(userText, isSystemStart) {
@@ -514,10 +600,13 @@ async function resetEngine() {
       });
     } catch (err) { console.error(err); }
   }
-  state = { company: '', companyId: null, currentGate: 0, gateStatus: {}, messages: [], started: false, auditFlags: [] };
+  state = { company: '', companyId: null, currentGate: 0, gateStatus: {}, messages: [], started: false, auditFlags: [], mode: 'gate', createMessages: [] };
   document.getElementById('companySelect').value = '';
   document.getElementById('chatArea').innerHTML = `<div class="welcome" id="welcome"><h2>The Engine</h2><p>Pick a company to start.</p></div>`;
   document.getElementById('inputArea').style.display = 'none';
+  document.getElementById('modeToggle').style.display = 'none';
+  document.getElementById('modeBtnGate').classList.add('active');
+  document.getElementById('modeBtnCreate').classList.remove('active');
   renderGates();
   renderFlags();
 }

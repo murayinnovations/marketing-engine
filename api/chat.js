@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getSupabase } from "../lib/supabase.js";
 import { slugify } from "../lib/slugify.js";
 import { getCompanyResearch } from "../lib/company-research.js";
+import { GATE_NAMES } from "../lib/gates.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -122,12 +123,6 @@ AFTER EVERY REPLY: call the report_turn_status tool exactly once.
 - gate_complete: true only when the current gate's required output has been fully captured and you've told the team it's approved. Otherwise false.
 - gate_summary: required when gate_complete is true — a standalone 3-6 sentence recap of what was approved. This becomes the permanent locked-standard record shown to you in later gates, so write it as a reference document, not as a reply to the user. Omit (null) when gate_complete is false.
 - deviation: only when the team's current answer contradicts an already-locked Section 1 standard shown to you in the LOCKED STANDARDS block below — name the standard, the variation, the risk, and your recommendation. Otherwise null.`;
-
-const GATE_NAMES = [
-  "Growth Gap", "Who", "Problem / Desire", "Positioning", "Product / Service",
-  "Offer & Price", "Belief & Proof", "Journey & Channels", "Sales Enablement",
-  "Funnel & Conversion", "Follow Up & Retention", "Measure & Improve",
-];
 
 const REPORT_TOOL = {
   name: "report_turn_status",
